@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  # Define the producer service for air quality data
+  airquality:
+    container_name: airquality
+    build: .
+    environment:
+      KAFKA_BROKER_URL: broker:9092
+      TOPIC_NAME: air_quality
+      SLEEP_TIME: 40
+
+networks:
+  default:
+    external:
+      name: kafka-network
