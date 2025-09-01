@@ -1,0 +1,24 @@
+{
+  "name": "mongo-sink",
+  "config": {
+    "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
+    "tasks.max": "1",
+
+    "topics": "events",
+
+    "connection.uri": "mongodb+srv://s3979239:whatsup@cluster0.zalzedb.mongodb.net/",
+    "database": "bdg",
+    "collection": "events",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false",
+
+    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.FullKeyStrategy",
+    "writemodel.strategy": "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneBusinessKeyStrategy",
+
+    "max.num.retries": "3",
+    "retries.defer.timeout": "5000"
+  }
+}
