@@ -1,51 +1,111 @@
-version: "3.9"
+
+
 services:
   kafka:
     image: bitnami/kafka:3.7
     container_name: kafka
-    environment:
-      - KAFKA_CFG_NODE_ID=1
-      - KAFKA_CFG_PROCESS_ROLES=broker,controller
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
-      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
-      - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
-      - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
     ports:
       - "9092:9092"
-    networks: [bdgnet]
-
-  connect:
-    build: ./kafka/connect   
-    image: local/kafka-connect:7.5.4
     environment:
-      - CONNECT_BOOTSTRAP_SERVERS=kafka:9092
-      - CONNECT_REST_ADVERTISED_HOST_NAME=kafka-connect
-      - CONNECT_GROUP_ID=connect-cluster
-      - CONNECT_CONFIG_STORAGE_TOPIC=_connect_configs
-      - CONNECT_OFFSET_STORAGE_TOPIC=_connect_offsets
-      - CONNECT_STATUS_STORAGE_TOPIC=_connect_status
-      - CONNECT_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
-      - CONNECT_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
-      - CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE=false
-      - CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE=false
-      - CONNECT_PLUGIN_PATH=/usr/share/java,/usr/share/confluent-hub-components
-    depends_on: [kafka]
-    ports:
-      - "8083:8083"   # Kafka Connect REST
-    networks: [bdgnet]
+      # --- Single-node KRaft ---
+      KAFKA_ENABLE_KRAFT: "yes"
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: "broker,controller"
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_CFG_LOG_RETENTION_HOURS: "24"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "echo > /dev/tcp/127.0.0.1/9092"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+    networks: [pipeline]
 
-  # test producer (kcat) – runs on demand, no need to start by default
-  kcat:
-    image: edenhill/kcat:1.7.1
-    container_name: kcat
-    entrypoint: ["/bin/sh","-lc","sleep infinity"]
-    depends_on: [kafka]
-    networks: [bdgnet]
+  kafka-connect:
+    build:
+      context: .
+      dockerfile: connect.Dockerfile
+    container_name: kafka-connect
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      # ---- required basics ----
+      CONNECT_BOOTSTRAP_SERVERS: "kafka:9092"
+      CONNECT_LISTENERS: "http://0.0.0.0:8083"
+      CONNECT_REST_PORT: "8083"
+
+      # ---- advertise correctly (NO URLs here except host:port strings) ----
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+      CONNECT_REST_ADVERTISED_PORT: "8083"
+      CONNECT_REST_ADVERTISED_LISTENER: "http"   
+
+      # ---- internal topics ----
+      CONNECT_GROUP_ID: "connect"
+      CONNECT_CONFIG_STORAGE_TOPIC: "_connect-configs"
+      CONNECT_OFFSET_STORAGE_TOPIC: "_connect-offsets"
+      CONNECT_STATUS_STORAGE_TOPIC: "_connect-status"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+
+      # ---- converters ----
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_PLUGIN_PATH: "/usr/share/confluent-hub-components"
+
+      # ---- your connector params come from .env  ----
+      MONGO_URI: ${MONGO_URI}
+      CONNECTOR_NAME: ${CONNECTOR_NAME:-mongo-sink}
+      TOPIC: ${TOPIC:-weather.raw}
+      MONGO_DB: ${MONGO_DB:-weather}
+      MONGO_COLLECTION: ${MONGO_COLLECTION:-events}
+
+      # (optional) a bit more heap
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx1g"
+    volumes:
+      - ./kafka/connect:/workspace/connect
+      - ./.env:/workspace/.env:ro           # <-- mount your .env so scripts can read it
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -sf http://localhost:8083/connectors >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+    networks: [pipeline]
+
+  # these will build only if you have ./producer and ./consumer folders
+  producer:
+    build: ./producer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      TOPIC: weather.raw
+      OPENWEATHERMAP_API_KEY: "73d0140e5ab3cfac25c117068562e17e"
+      CITY: "Ho Chi Minh City"
+      INTERVAL_SECONDS: "15"
+    networks: [pipeline]
+
+  consumer:
+    build: ./consumer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      TOPIC: weather.raw
+      GROUP_ID: weather-consumer
+    networks: [pipeline]
 
 networks:
-  bdgnet:
-    driver: bridge
+  pipeline:
+    name: datapipeline-net
