@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# ---- Hard-coded values (you can tweak here) ----
+# ---- Hard-coded values  ----
 CONNECT_URL="http://localhost:8083"
 CONNECTOR_NAME="mongo-sink"
 TOPIC="weather.raw"
@@ -9,8 +9,7 @@ TOPIC="weather.raw"
 MONGO_URI="mongodb+srv://s3979239:whatsup@cluster0.zalzedb.mongodb.net/"
 MONGO_DB="weather"
 MONGO_COLLECTION="events"
-# OPENWEATHERMAP_API_KEY is for your producer; not used by the sink
-OPENWEATHERMAP_API_KEY="73d0140e5ab3cfac25c117068562e17e"
+
 
 # Build JSON payload into /tmp to avoid CRLF issues
 cat >/tmp/mongo-sink.json <<EOF

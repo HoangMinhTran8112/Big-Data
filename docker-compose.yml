@@ -75,7 +75,7 @@ services:
       KAFKA_HEAP_OPTS: "-Xms256m -Xmx1g"
     volumes:
       - ./kafka/connect:/workspace/connect
-      - ./.env:/workspace/.env:ro           # <-- mount your .env so scripts can read it
+      - ./.env:/workspace/.env:ro           
     healthcheck:
       test: ["CMD", "bash", "-lc", "curl -sf http://localhost:8083/connectors >/dev/null"]
       interval: 5s
