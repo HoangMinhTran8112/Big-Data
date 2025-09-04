@@ -4,18 +4,22 @@
     "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
     "tasks.max": "1",
 
-    "topics": "events",
+    "topics": "weather,air_quality,weather.raw,bike_summary,road_disruption",
+
 
     "connection.uri": "mongodb+srv://s3979239:whatsup@cluster0.zalzedb.mongodb.net/",
     "database": "bdg",
     "collection": "events",
 
-    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-    "key.converter.schemas.enable": "false",
     "value.converter.schemas.enable": "false",
 
-    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.FullKeyStrategy",
+    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.PartialValueStrategy",
+    "document.id.strategy.partial.value.projection.list": "city,provider_ts",
+    "document.id.strategy.partial.value.projection.type": "AllowList",
+
+
     "writemodel.strategy": "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneBusinessKeyStrategy",
 
     "max.num.retries": "3",

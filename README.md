@@ -1,70 +1,96 @@
 # How to Run
 
-### Start Kafka + Kafka Connect
+1. Start Kafka + Kafka Connect
 ```bash
 docker compose up -d kafka kafka-connect
 ```
 
-### Wait for Kafka Connect & register Mongo sink
-```bash
-docker compose exec kafka-connect sh -lc "/workspace/connect/start-and-wait.sh"
-```
-This creates the connector **mongo-sink** pointing to your MongoDB.
 
-### Build and start Producer + Consumer
+2. Create Topics
+Run once to bootstrap the topics your producers and sink use:
 ```bash
-docker compose --profile apps build producer consumer
-docker compose --profile apps up -d producer consumer
-```
-
-### View logs
-```bash
-docker compose logs -f producer
-docker compose logs -f consumer
+docker compose exec kafka bash -lc '
+/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic weather --partitions 1 --replication-factor 1
+/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic air_quality --partitions 1 --replication-factor 1
+/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic bike_summary --partitions 1 --replication-factor 1
+/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic road_disruption --partitions 1 --replication-factor 1
+/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic weather.raw --partitions 1 --replication-factor 1
+/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+'
 ```
 
-- **Producer** shows weather data being published to Kafka.  
-- **Consumer** prints messages received from Kafka.  
-- **MongoDB Atlas** will contain documents in database `weather`, collection `events`.
+
+3. Wait for Kafka Connect & Register Mongo Sink
+This will wait for Kafka Connect to come up, normalize CRLF, then POST the sink config from create-sink-mongodb.sh.
+```bash
+docker compose exec kafka-connect sh -lc "
+  sed -i 's/\r$//' /workspace/connect/*.sh && \
+  chmod +x /workspace/connect/*.sh && \
+  /workspace/connect/start-and-wait.sh
+"
+```
+This creates the connector mongo-sink pointing to your MongoDB Atlas:
+Database: bdg
+Collection: events
+Topics: weather, air_quality, bike_summary, road_disruption, weather.raw
+Document ID: {city, provider_ts} (so you don’t get duplicates per city per timestamp)
+
+
+4. Build and Start Producers
+Build and run all producer services:
+```bash
+docker compose --profile apps build
+docker compose --profile apps up -d owm-producer airquality-producer bike-summary-producer roaddisrupt-producer
+```
+
+
+5. View logs
+```bash
+docker compose logs -f owm-producer
+docker compose logs -f airquality-producer
+docker compose logs -f bike-summary-producer
+docker compose logs -f roaddisrupt-producer
+```
+
+
 
 ---
+Adding More Producers or Consumers
 
-## Adding More Producers or Consumers
+To add new producers/consumers, drop them under producer/ or consumer/ and add a service block in docker-compose.yml.
 
-You don’t need a new Dockerfile for each one — just reuse the same image and override the command or environment.
+Example:
 
-Example in `docker-compose.yml`:
-
-```yaml
 services:
-  producer_a:
-    build: ./producer
-    command: ["python", "app/producer_a.py"]
+  my-extra-producer:
+    build: ./producer/my-extra-producer
+    container_name: my-extra-producer
+    depends_on:
+      - kafka
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      TOPIC: weather.raw
+      KAFKA_BROKER_URL: kafka:9092
+      TOPIC_NAME: my_topic
+    networks: [pipeline]
+    profiles: ["apps"]
 
-  producer_b:
-    image: ${COMPOSE_PROJECT_NAME}_producer:latest  # reuse built image
-    command: ["python", "app/producer_b.py"]
+  my-extra-consumer:
+    build: ./consumer/my-extra-consumer
+    container_name: my-extra-consumer
+    depends_on:
+      - kafka
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      TOPIC: weather.raw
+      KAFKA_BROKER_URL: kafka:9092
+      TOPIC_NAME: my_topic
+      GROUP_ID: my-consumer-group
+    networks: [pipeline]
+    profiles: ["apps"]
 
-  consumer_extra:
-    image: ${COMPOSE_PROJECT_NAME}_consumer:latest  # reuse consumer image
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      TOPIC: weather.raw
-      GROUP_ID: weather-extra
-```
 
 Start them the same way:
-```bash
-docker compose --profile apps up -d producer_a producer_b consumer_extra
-```
 
-Or scale an existing service:
-```bash
-docker compose --profile apps up -d --scale consumer=3
-```
+docker compose --profile apps up -d my-extra-producer my-extra-consumer
+
+
+Or scale an existing consumer:
+
+docker compose --profile apps up -d --scale airquality-consumer=3

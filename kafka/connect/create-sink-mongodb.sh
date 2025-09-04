@@ -1,15 +1,17 @@
 #!/bin/sh
 set -eu
 
-# ---- Hard-coded values  ----
-CONNECT_URL="http://localhost:8083"
-CONNECTOR_NAME="mongo-sink"
-TOPIC="weather.raw"
+# ---- Config ----
+CONNECT_URL="${CONNECT_URL:-http://localhost:8083}"
+CONNECTOR_NAME="${CONNECTOR_NAME:-mongo-sink}"
 
-MONGO_URI="mongodb+srv://s3979239:whatsup@cluster0.zalzedb.mongodb.net/"
-MONGO_DB="weather"
-MONGO_COLLECTION="events"
+# Topics you want the sink to read
+SINK_TOPICS="${SINK_TOPICS:-weather,air_quality,weather.raw,bike_summary,road_disruption}"
 
+# Mongo target
+MONGO_URI="${MONGO_URI:-mongodb+srv://s3979239:whatsup@cluster0.zalzedb.mongodb.net/}"
+MONGO_DB="${MONGO_DB:-bdg}"
+MONGO_COLLECTION="${MONGO_COLLECTION:-events}"
 
 # Build JSON payload into /tmp to avoid CRLF issues
 cat >/tmp/mongo-sink.json <<EOF
@@ -18,24 +20,26 @@ cat >/tmp/mongo-sink.json <<EOF
   "config": {
     "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
     "tasks.max": "1",
-    "topics": "weather.raw",
-    "connection.uri": "mongodb+srv://s3979239:whatsup@cluster0.zalzedb.mongodb.net/",
-    "database": "weather",
-    "collection": "events",
 
+    "topics": "${SINK_TOPICS}",
+
+    "connection.uri": "${MONGO_URI}",
+    "database": "${MONGO_DB}",
+    "collection": "${MONGO_COLLECTION}",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "false",
-    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+
+    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.PartialValueStrategy",
+    "document.id.strategy.partial.value.projection.list": "city,provider_ts",
+    "document.id.strategy.partial.value.projection.type": "AllowList",
 
     "writemodel.strategy": "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneBusinessKeyStrategy",
-    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.PartialValueStrategy",
-    "document.id.strategy.partial.value.projection.list": "id,_id,dt,dt_iso",
-    "document.id.strategy.partial.value.projection.type": "AllowList",
 
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "mongo-sink_dlq",
     "errors.deadletterqueue.context.headers.enable": "true",
-
     "errors.deadletterqueue.topic.replication.factor": "1",
     "errors.deadletterqueue.topic.partitions": "1",
 
@@ -66,13 +70,11 @@ echo "[mongo-sink] HTTP ${HTTP_CODE}"
 cat /tmp/resp.txt || true
 echo
 
-# Treat non-2xx as failure so you notice
 case "$HTTP_CODE" in
   2*) : ;;  # ok
   *) echo "[mongo-sink] ERROR: request failed (see response above)"; exit 1 ;;
 esac
 
-# Show status
 curl -s "${CONNECT_URL}/connectors/${CONNECTOR_NAME}/status" || true
 echo
 echo "[mongo-sink] ready."

@@ -75,7 +75,7 @@ services:
       KAFKA_HEAP_OPTS: "-Xms256m -Xmx1g"
     volumes:
       - ./kafka/connect:/workspace/connect
-      - ./.env:/workspace/.env:ro           
+      - ./.env:/workspace/.env:ro           # <-- mount your .env so scripts can read it
     healthcheck:
       test: ["CMD", "bash", "-lc", "curl -sf http://localhost:8083/connectors >/dev/null"]
       interval: 5s
@@ -84,17 +84,69 @@ services:
     networks: [pipeline]
 
   # these will build only if you have ./producer and ./consumer folders
-  producer:
-    build: ./producer
+  owm-producer:
+    build: ./producer/owm-producer
+    container_name: owm-producer
     depends_on:
       - kafka
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      TOPIC: weather.raw
-      OPENWEATHERMAP_API_KEY: "73d0140e5ab3cfac25c117068562e17e"
-      CITY: "Ho Chi Minh City"
-      INTERVAL_SECONDS: "15"
+      KAFKA_BROKER_URL: kafka:9092
+      TOPIC_NAME: weather
+      CITY: "London"
+      UNITS: metric
+      SLEEP_TIME: "30"
+      LOG_LEVEL: INFO
     networks: [pipeline]
+    profiles: ["apps"]
+
+
+  airquality-producer:
+    build: ./producer/airquality-producer
+    container_name: airquality-producer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER_URL: kafka:9092
+      TOPIC_NAME: air_quality
+      CITY: "London"
+      LAT: "51.5074"
+      LON: "-0.1278"
+      SLEEP_TIME: "300"
+      LOG_LEVEL: INFO
+    networks: [pipeline]
+    profiles: ["apps"]
+  
+  bike-summary-producer:
+    build: ./producer/bike-summary-producer
+    container_name: bike-summary-producer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER_URL: kafka:9092
+      TOPIC_NAME: bike_summary
+      CITY: "London"
+      API_URL: "https://api.citybik.es/v2/networks/santander-cycles"
+      SLEEP_TIME: "60"
+      LOG_LEVEL: INFO
+    networks: [pipeline]
+    profiles: ["apps"]
+
+  roaddisrupt-producer:
+    build: ./producer/roaddisrupt-producer
+    container_name: roaddisrupt-producer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER_URL: kafka:9092
+      TOPIC_NAME: road_disruption     
+      SLEEP_TIME: "60"
+      LOG_LEVEL: INFO
+      # If you want CITY too, you can add it and use in utils
+      CITY: "London"
+    networks: [pipeline]
+    profiles: ["apps"]
+
+
 
   consumer:
     build: ./consumer
