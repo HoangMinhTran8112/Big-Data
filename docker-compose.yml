@@ -94,7 +94,7 @@ services:
       TOPIC_NAME: weather
       CITY: "London"
       UNITS: metric
-      SLEEP_TIME: "30"
+      SLEEP_TIME: "600"
       LOG_LEVEL: INFO
     networks: [pipeline]
     profiles: ["apps"]
@@ -111,7 +111,7 @@ services:
       CITY: "London"
       LAT: "51.5074"
       LON: "-0.1278"
-      SLEEP_TIME: "300"
+      SLEEP_TIME: "600"
       LOG_LEVEL: INFO
     networks: [pipeline]
     profiles: ["apps"]
@@ -126,7 +126,7 @@ services:
       TOPIC_NAME: bike_summary
       CITY: "London"
       API_URL: "https://api.citybik.es/v2/networks/santander-cycles"
-      SLEEP_TIME: "60"
+      SLEEP_TIME: "600"
       LOG_LEVEL: INFO
     networks: [pipeline]
     profiles: ["apps"]
@@ -139,7 +139,7 @@ services:
     environment:
       KAFKA_BROKER_URL: kafka:9092
       TOPIC_NAME: road_disruption     
-      SLEEP_TIME: "60"
+      SLEEP_TIME: "1800"
       LOG_LEVEL: INFO
       # If you want CITY too, you can add it and use in utils
       CITY: "London"

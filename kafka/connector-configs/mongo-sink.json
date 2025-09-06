@@ -7,7 +7,7 @@
     "topics": "weather,air_quality,weather.raw,bike_summary,road_disruption",
 
 
-    "connection.uri": "mongodb+srv://s3979239:whatsup@cluster0.zalzedb.mongodb.net/",
+    "connection.uri": "mongodb+srv://user1:user1password@cluster0.tko1rud.mongodb.net/",
     "database": "bdg",
     "collection": "events",
 
