@@ -1,0 +1,31 @@
+{
+  "name": "mongo-sink-pertopic",
+  "config": {
+    "connector.class": "com.mongodb.kafka.connect.MongoSinkConnector",
+    "tasks.max": "1",
+
+    "topics": "weather,air_quality,bike_summary,road_disruption,weather.raw",
+
+    "connection.uri": "mongodb+srv://s3979239:whatsup@cluster0.zalzedb.mongodb.net/?retryWrites=true&w=majority",
+
+    "topic.namespace.map": "weather:bdg.weather,air_quality:bdg.air_quality,bike_summary:bdg.bike_summary,road_disruption:bdg.road_disruption,weather.raw:bdg.weather_raw",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+
+    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.PartialValueStrategy",
+    "document.id.strategy.partial.value.projection.list": "city,provider_ts",
+    "document.id.strategy.partial.value.projection.type": "AllowList",
+    "writemodel.strategy": "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneBusinessKeyStrategy",
+
+    "errors.tolerance": "all",
+    "errors.deadletterqueue.topic.name": "mongo-sink_pertopic_dlq",
+    "errors.deadletterqueue.context.headers.enable": "true",
+    "errors.deadletterqueue.topic.replication.factor": "1",
+    "errors.deadletterqueue.topic.partitions": "1",
+
+    "max.num.retries": "3",
+    "retries.defer.timeout": "5000"
+  }
+}

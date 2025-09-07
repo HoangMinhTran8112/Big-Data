@@ -11,15 +11,22 @@ until [ "$(curl -s -o /dev/null -w '%{http_code}' "${CONNECT_URL}/connectors")" 
 done
 echo "[start-and-wait] Kafka Connect is up."
 
-# Normalize CRLF if this file was edited on Windows
-if [ -f /workspace/connect/create-sink-mongodb.sh ]; then
-  # copy to /tmp (bind mounts from Windows can be picky with perms)
-  tr -d '\r' < /workspace/connect/create-sink-mongodb.sh > /tmp/create-sink-mongodb.sh
-  chmod +x /tmp/create-sink-mongodb.sh
-  /tmp/create-sink-mongodb.sh
-else
-  echo "[start-and-wait] ERROR: /workspace/connect/create-sink-mongodb.sh not found" >&2
-  exit 1
-fi
+run_script() {
+  name="$1"
+  path="/workspace/connect/$name"
+  if [ -f "$path" ]; then
+    echo "[start-and-wait] running $name ..."
+    # strip CRLF → copy to /tmp → execute
+    tr -d '\r' < "$path" > "/tmp/$name"
+    chmod +x "/tmp/$name"
+    "/tmp/$name"
+  else
+    echo "[start-and-wait] WARNING: $path not found, skipping" >&2
+  fi
+}
+
+# Run both scripts
+run_script "create-sink-mongodb.sh"
+run_script "create-sink-mongodb-pertopic.sh"
 
 echo "[start-and-wait] done."
