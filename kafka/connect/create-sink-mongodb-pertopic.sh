@@ -9,7 +9,6 @@ TOPICS_CSV="weather,air_quality,weather.raw,bike_summary,road_disruption"
 MONGO_URI="mongodb+srv://s3979239:whatsup@cluster0.zalzedb.mongodb.net/"
 MONGO_DB="bdg"
 
-ID_FIELDS="city,provider_ts"
 TASKS_MAX="1"
 
 trim() { echo "$1" | awk '{$1=$1;print}'; }
@@ -34,11 +33,8 @@ mk_create_payload() {
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "false",
 
-    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.PartialValueStrategy",
-    "document.id.strategy.partial.value.projection.list": "${ID_FIELDS}",
-    "document.id.strategy.partial.value.projection.type": "AllowList",
-
-    "writemodel.strategy": "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneBusinessKeyStrategy",
+    "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.KafkaMetaDataStrategy",
+    "writemodel.strategy": "com.mongodb.kafka.connect.sink.writemodel.strategy.InsertOneDefaultStrategy",
 
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "${dlq}_dlq",
@@ -70,11 +66,8 @@ mk_update_payload() {
   "value.converter": "org.apache.kafka.connect.json.JsonConverter",
   "value.converter.schemas.enable": "false",
 
-  "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.PartialValueStrategy",
-  "document.id.strategy.partial.value.projection.list": "${ID_FIELDS}",
-  "document.id.strategy.partial.value.projection.type": "AllowList",
-
-  "writemodel.strategy": "com.mongodb.kafka.connect.sink.writemodel.strategy.ReplaceOneBusinessKeyStrategy",
+  "document.id.strategy": "com.mongodb.kafka.connect.sink.processor.id.strategy.KafkaMetaDataStrategy",
+  "writemodel.strategy": "com.mongodb.kafka.connect.sink.writemodel.strategy.InsertOneDefaultStrategy",
 
   "errors.tolerance": "all",
   "errors.deadletterqueue.topic.name": "${dlq}_dlq",
